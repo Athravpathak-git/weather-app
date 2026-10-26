@@ -1,11 +1,11 @@
-# Aether Weather — Cinematic Atmospheric Intelligence
+# SkyPulse Weather — Live Weather & Forecast
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Status: Production Ready](https://img.shields.io/badge/Status-Production%20Ready-emerald.svg)]()
 [![API: Open--Meteo](https://img.shields.io/badge/Weather%20Data-Open--Meteo-38bdf8.svg)](https://open-meteo.com/)
 [![Stack: Vanilla Web](https://img.shields.io/badge/Architecture-Vanilla%20HTML5%20%7C%20CSS3%20%7C%20ES6+-f59e0b.svg)]()
 
-> An editorial, production-grade weather application inspired by modern glass surfaces, cinematic atmospheric backgrounds, and responsive meteorological visualization. Powered directly by Open-Meteo's open APIs without requiring API keys or secret tokens.
+> **SkyPulse Weather** is an editorial, production-grade weather application featuring live meteorological intelligence, modern glass surfaces, cinematic atmospheric backgrounds, and responsive weather visualizations. Powered directly by Open-Meteo's open APIs without requiring private API keys or secret tokens.
 
 ---
 
@@ -95,7 +95,7 @@ All meteorological data is sourced in real-time from [Open-Meteo](https://open-m
 
 ### Local Development
 
-Because Aether Weather is a static application, you can run it immediately without running `npm install` or any build tool:
+Because SkyPulse Weather is a static application, you can run it immediately without running `npm install` or any build tool:
 
 #### Option A: Direct Browser Launch
 Simply double-click `index.html` or open it in your browser of choice (Chrome, Edge, Firefox, Safari).
@@ -122,13 +122,13 @@ Install the "Live Server" extension and click **Go Live** on `index.html`.
 
 ## 🌐 Deployment Instructions
 
-Aether Weather is designed to deploy seamlessly to any static hosting provider.
+SkyPulse Weather is designed to deploy seamlessly to any static hosting provider.
 
 ### Deploying to GitHub Pages
 1. Push your repository to GitHub:
    ```bash
    git add .
-   git commit -m "Upgrade to Aether Weather"
+   git commit -m "fix: repair weather loading and rebrand to SkyPulse"
    git push origin main
    ```
 2. In your GitHub repository:

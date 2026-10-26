@@ -1,7 +1,7 @@
 /**
  * ============================================================================
- * AETHER WEATHER — CINEMATIC ATMOSPHERIC INTELLIGENCE
- * Core Application Engine & Real Open-Meteo API Integrations
+ * SKYPULSE WEATHER — LIVE WEATHER & FORECAST
+ * Production Application Engine & Real Open-Meteo Meteorological Integrations
  * ============================================================================
  */
 
@@ -9,12 +9,20 @@
    1. CONSTANTS & CONFIGURATION
    ---------------------------------------------------------------------------- */
 const CONFIG = {
+    // Real, Public Open-Meteo Endpoints (No API key required)
     GEOCODING_API: 'https://geocoding-api.open-meteo.com/v1/search',
     WEATHER_API: 'https://api.open-meteo.com/v1/forecast',
     AIR_QUALITY_API: 'https://air-quality-api.open-meteo.com/v1/air-quality',
     REVERSE_GEO_API: 'https://api.bigdatacloud.net/data/reverse-geocode-client',
     NOMINATIM_GEO_API: 'https://nominatim.openstreetmap.org/reverse',
     STORAGE_KEYS: {
+        THEME: 'skypulse_theme',
+        TEMP_UNIT: 'skypulse_temp_unit',
+        WIND_UNIT: 'skypulse_wind_unit',
+        FAVORITES: 'skypulse_favorites_v2',
+        LAST_LOCATION: 'skypulse_last_location'
+    },
+    LEGACY_STORAGE_KEYS: {
         THEME: 'aether_theme',
         TEMP_UNIT: 'aether_temp_unit',
         WIND_UNIT: 'aether_wind_unit',
@@ -273,11 +281,20 @@ function degreesToCardinal(deg) {
 }
 
 /* ----------------------------------------------------------------------------
-   5. STORAGE HELPERS
+   5. STORAGE HELPERS (WITH BACKWARD COMPATIBILITY)
    ---------------------------------------------------------------------------- */
 function safeStorageGet(key, fallback = null) {
     try {
-        const item = localStorage.getItem(key);
+        let item = localStorage.getItem(key);
+        // Fallback to legacy key if skypulse key not yet stored
+        if (!item) {
+            for (const [k, v] of Object.entries(CONFIG.STORAGE_KEYS)) {
+                if (v === key && CONFIG.LEGACY_STORAGE_KEYS[k]) {
+                    item = localStorage.getItem(CONFIG.LEGACY_STORAGE_KEYS[k]);
+                    break;
+                }
+            }
+        }
         return item ? JSON.parse(item) : fallback;
     } catch (e) {
         return fallback;
@@ -293,7 +310,72 @@ function safeStorageSet(key, value) {
 }
 
 /* ----------------------------------------------------------------------------
-   6. API CLIENT METHODS
+   6. UI STATE CONTROLLERS (FAIL-SAFE VISIBILITY)
+   ---------------------------------------------------------------------------- */
+function showLoading(show) {
+    const loadingOverlay = document.getElementById('dashboardLoading');
+    if (loadingOverlay) {
+        loadingOverlay.hidden = !show;
+        loadingOverlay.style.display = show ? 'flex' : 'none';
+        loadingOverlay.classList.toggle('is-active', show);
+    }
+}
+
+function showError(title, message) {
+    showLoading(false);
+    const errorPanel = document.getElementById('errorPanel');
+    const dashboardContent = document.getElementById('dashboardContent');
+    if (errorPanel) {
+        const titleEl = document.getElementById('errorTitle');
+        const descEl = document.getElementById('errorDescription');
+        if (titleEl) titleEl.textContent = title || 'Unable to Load Weather Data';
+        if (descEl) descEl.textContent = message || 'Please check your internet connection and try again.';
+        errorPanel.hidden = false;
+        errorPanel.style.display = 'block';
+        errorPanel.classList.add('is-active');
+    }
+    if (dashboardContent) {
+        dashboardContent.style.opacity = '1';
+        dashboardContent.style.display = 'none';
+    }
+}
+
+function hideError() {
+    const errorPanel = document.getElementById('errorPanel');
+    const dashboardContent = document.getElementById('dashboardContent');
+    if (errorPanel) {
+        errorPanel.hidden = true;
+        errorPanel.style.display = 'none';
+        errorPanel.classList.remove('is-active');
+    }
+    if (dashboardContent) {
+        dashboardContent.style.display = 'grid';
+        dashboardContent.style.opacity = '1';
+    }
+}
+
+function showAlert(message, type = 'error') {
+    const alertEl = document.getElementById('appAlert');
+    const messageEl = document.getElementById('alertMessage');
+    if (!alertEl || !messageEl) return;
+
+    messageEl.textContent = message;
+    alertEl.className = `app-alert-banner ${type} is-active`;
+    alertEl.style.display = 'flex';
+    alertEl.hidden = false;
+}
+
+function dismissAlert() {
+    const alertEl = document.getElementById('appAlert');
+    if (alertEl) {
+        alertEl.classList.remove('is-active');
+        alertEl.style.display = 'none';
+        alertEl.hidden = true;
+    }
+}
+
+/* ----------------------------------------------------------------------------
+   7. API CLIENT METHODS
    ---------------------------------------------------------------------------- */
 /**
  * Search locations using Open-Meteo Geocoding
@@ -330,8 +412,8 @@ async function fetchWeatherForecast(lat, lon, timezone = 'auto') {
     state.weatherAbortController = new AbortController();
 
     const params = new URLSearchParams({
-        latitude: lat,
-        longitude: lon,
+        latitude: Number(lat),
+        longitude: Number(lon),
         current: [
             'temperature_2m',
             'relative_humidity_2m',
@@ -384,8 +466,8 @@ async function fetchWeatherForecast(lat, lon, timezone = 'auto') {
  */
 async function fetchAirQuality(lat, lon, timezone = 'auto') {
     const params = new URLSearchParams({
-        latitude: lat,
-        longitude: lon,
+        latitude: Number(lat),
+        longitude: Number(lon),
         current: [
             'european_aqi',
             'us_aqi',
@@ -416,7 +498,6 @@ async function fetchAirQuality(lat, lon, timezone = 'auto') {
  * Reverse geocoding for GPS coordinates
  */
 async function reverseGeocodeCoords(lat, lon) {
-    // 1. Try BigDataCloud Client Reverse Geocode (free, high limit)
     try {
         const url = `${CONFIG.REVERSE_GEO_API}?latitude=${lat}&longitude=${lon}&localityLanguage=en`;
         const res = await fetch(url);
@@ -438,7 +519,6 @@ async function reverseGeocodeCoords(lat, lon) {
         // Fallback below
     }
 
-    // 2. Open-Meteo search nearest fallback
     return {
         name: 'Current Location',
         country: `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`,
@@ -450,7 +530,7 @@ async function reverseGeocodeCoords(lat, lon) {
 }
 
 /* ----------------------------------------------------------------------------
-   7. UI RENDERING PIPELINE
+   8. UI RENDERING PIPELINE
    ---------------------------------------------------------------------------- */
 
 /**
@@ -465,24 +545,6 @@ function setTheme(theme) {
     if (metaThemeColor) {
         metaThemeColor.setAttribute('content', theme === 'dark' ? '#0a0e17' : '#f1f5f9');
     }
-}
-
-/**
- * Display alert banner
- */
-function showAlert(message, type = 'error') {
-    const alertEl = document.getElementById('appAlert');
-    const messageEl = document.getElementById('alertMessage');
-    if (!alertEl || !messageEl) return;
-
-    messageEl.textContent = message;
-    alertEl.className = `app-alert-banner ${type}`;
-    alertEl.hidden = false;
-}
-
-function dismissAlert() {
-    const alertEl = document.getElementById('appAlert');
-    if (alertEl) alertEl.hidden = true;
 }
 
 /**
@@ -612,7 +674,6 @@ function renderHourlyForecast() {
         const isDayVal = hourly.is_day[index];
         const precipProb = hourly.precipitation_probability ? hourly.precipitation_probability[index] : 0;
 
-        // Parse hour
         const dateObj = new Date(timeVal);
         let timeLabel = i === 0 ? 'Now' : dateObj.toLocaleTimeString([], { hour: 'numeric', hour12: true });
 
@@ -738,7 +799,7 @@ function renderSvgTrendChart(hours) {
             <text x="${p.x}" y="${height - 15}" text-anchor="middle" fill="var(--text-secondary)" font-size="11" font-weight="500">${p.hour.timeLabel}</text>
         `).join('')}
 
-        <!-- Vertical Hover Guide (hidden initially) -->
+        <!-- Vertical Hover Guide -->
         <line id="chartHoverGuide" x1="0" y1="${padding.top}" x2="0" y2="${height - padding.bottom}" stroke="var(--accent-weather)" stroke-width="1.5" stroke-dasharray="3 3" style="display:none;" />
     `;
 
@@ -748,7 +809,6 @@ function renderSvgTrendChart(hours) {
             const rect = wrapperEl.getBoundingClientRect();
             const relX = (e.clientX - rect.left) * (width / rect.width);
 
-            // Find closest point
             let closest = points[0];
             let minDist = Math.abs(relX - points[0].x);
             for (let p of points) {
@@ -773,13 +833,17 @@ function renderSvgTrendChart(hours) {
                 tooltipEl.style.left = `${screenX}px`;
                 tooltipEl.style.top = `${screenY}px`;
                 tooltipEl.hidden = false;
+                tooltipEl.style.display = 'block';
             }
         };
 
         wrapperEl.onmouseleave = () => {
             const guide = document.getElementById('chartHoverGuide');
             if (guide) guide.style.display = 'none';
-            if (tooltipEl) tooltipEl.hidden = true;
+            if (tooltipEl) {
+                tooltipEl.hidden = true;
+                tooltipEl.style.display = 'none';
+            }
         };
     }
 }
@@ -836,7 +900,6 @@ function renderAtmosphericMetrics() {
         pressureValEl.innerHTML = `${Math.round(p)} <span class="metric-unit-inline">hPa</span>`;
     }
     if (pressureMarkerEl) {
-        // Map 970 to 1050 hPa to 0% - 100%
         const normalized = ((p - 970) / (1050 - 970)) * 100;
         pressureMarkerEl.style.left = `${Math.min(95, Math.max(5, normalized))}%`;
     }
@@ -846,7 +909,6 @@ function renderAtmosphericMetrics() {
     const uvBadgeEl = document.getElementById('uvBadge');
     const uvGuidanceEl = document.getElementById('uvGuidance');
 
-    // Get max UV for today or current hourly UV
     let uvVal = 0;
     if (daily.uv_index_max && daily.uv_index_max[0] !== undefined) {
         uvVal = daily.uv_index_max[0];
@@ -952,16 +1014,37 @@ function renderAtmosphericMetrics() {
  */
 function renderAirQuality() {
     const { airQuality } = state;
-    if (!airQuality || !airQuality.current) return;
-
-    const current = airQuality.current;
-
-    // European AQI (EAQI)
-    const eaqi = current.european_aqi ?? current.us_aqi ?? null;
     const aqiNumberEl = document.getElementById('aqiNumber');
     const aqiBadgeLevelEl = document.getElementById('aqiBadgeLevel');
     const aqiDescriptorEl = document.getElementById('aqiDescriptor');
     const aqiPinMarkerEl = document.getElementById('aqiPinMarker');
+
+    // If Air Quality is unavailable for this region
+    if (!airQuality || !airQuality.current) {
+        if (aqiNumberEl) aqiNumberEl.textContent = '--';
+        if (aqiBadgeLevelEl) {
+            aqiBadgeLevelEl.textContent = 'Not Reporting';
+            aqiBadgeLevelEl.style.color = 'var(--text-muted)';
+        }
+        if (aqiDescriptorEl) aqiDescriptorEl.textContent = 'Environmental sensors are not broadcasting for this geographical station.';
+        if (aqiPinMarkerEl) aqiPinMarkerEl.style.left = '0%';
+
+        ['pm25Val', 'pm10Val', 'no2Val', 'o3Val', 'so2Val', 'coVal'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = 'N/A';
+        });
+        ['pm25Status', 'pm10Status', 'no2Status', 'o3Status', 'so2Status', 'coStatus'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.textContent = 'Unavailable';
+                el.style.color = 'var(--text-muted)';
+            }
+        });
+        return;
+    }
+
+    const current = airQuality.current;
+    const eaqi = current.european_aqi ?? current.us_aqi ?? null;
 
     if (aqiNumberEl && eaqi !== null) {
         aqiNumberEl.textContent = eaqi;
@@ -1014,7 +1097,10 @@ function renderAirQuality() {
 
         if (val === null || val === undefined) {
             valEl.textContent = 'N/A';
-            if (statusEl) statusEl.textContent = 'Sensor unavailable';
+            if (statusEl) {
+                statusEl.textContent = 'Sensor unavailable';
+                statusEl.style.color = 'var(--text-muted)';
+            }
             return;
         }
 
@@ -1063,7 +1149,6 @@ function renderCelestialCycle() {
 
     if (!sunriseStr || !sunsetStr) return;
 
-    // Parse Sunrise & Sunset
     const sunriseDate = new Date(sunriseStr);
     const sunsetDate = new Date(sunsetStr);
 
@@ -1083,7 +1168,6 @@ function renderCelestialCycle() {
 
     // Solar Phase and Sun Position on Arc
     const now = new Date();
-    // Using current local time vs sunrise/sunset
     const totalDaylightMs = sunsetDate.getTime() - sunriseDate.getTime();
     const elapsedMs = now.getTime() - sunriseDate.getTime();
     let progressRatio = elapsedMs / totalDaylightMs;
@@ -1098,8 +1182,6 @@ function renderCelestialCycle() {
         if (solarPhaseTextEl) solarPhaseTextEl.textContent = 'Sun is currently above horizon';
     }
 
-    // Elliptical Arc: Center at X:160, Y:140. RadiusX: 130, RadiusY: 110.
-    // Angle from PI (sunrise at left: x=30, y=140) to 0 (sunset at right: x=290, y=140)
     const angle = Math.PI - (progressRatio * Math.PI);
     const sunX = 160 + 130 * Math.cos(angle);
     const sunY = 140 - 110 * Math.sin(angle);
@@ -1126,7 +1208,6 @@ function renderDailyForecast() {
 
     container.innerHTML = '';
 
-    // Calculate global weekly min and max to normalize range bars
     const allMins = daily.temperature_2m_min.map(t => state.units.temp === 'F' ? (t * 9 / 5) + 32 : t);
     const allMaxs = daily.temperature_2m_max.map(t => state.units.temp === 'F' ? (t * 9 / 5) + 32 : t);
     const weekMin = Math.min(...allMins);
@@ -1152,11 +1233,9 @@ function renderDailyForecast() {
 
         const cond = interpretWmoCode(code, 1);
 
-        // Range bar geometry
         const barLeftPct = ((minTemp - weekMin) / weekRange) * 100;
         const barWidthPct = Math.max(4, ((maxTemp - minTemp) / weekRange) * 100);
 
-        // Marker for today's current temperature
         let currentMarkerHtml = '';
         if (i === 0 && currentTempNormalized !== null) {
             const markerPct = Math.min(100, Math.max(0, ((currentTempNormalized - weekMin) / weekRange) * 100));
@@ -1212,7 +1291,7 @@ function renderAllWeatherViews() {
 }
 
 /* ----------------------------------------------------------------------------
-   8. FAVORITES & HISTORY MANAGEMENT
+   9. FAVORITES & HISTORY MANAGEMENT
    ---------------------------------------------------------------------------- */
 function initFavorites() {
     let saved = safeStorageGet(CONFIG.STORAGE_KEYS.FAVORITES);
@@ -1328,48 +1407,45 @@ function removeFavorite(favToRemove) {
 }
 
 /* ----------------------------------------------------------------------------
-   9. MAIN LOCATION SELECTION & WEATHER DISPATCHER
+   10. MAIN LOCATION SELECTION & WEATHER DISPATCHER
    ---------------------------------------------------------------------------- */
 async function selectLocation(loc) {
     if (!loc) return;
 
     dismissAlert();
+    hideError();
+    showLoading(true);
+
     state.location = loc;
     safeStorageSet(CONFIG.STORAGE_KEYS.LAST_LOCATION, loc);
 
-    const loadingOverlay = document.getElementById('dashboardLoading');
-    const errorPanel = document.getElementById('errorPanel');
-    const dashboardContent = document.getElementById('dashboardContent');
-
-    if (loadingOverlay) loadingOverlay.hidden = false;
-    if (errorPanel) errorPanel.hidden = true;
-    if (dashboardContent) dashboardContent.style.opacity = '0.5';
-
     try {
-        // Parallel fetch for weather and air quality
-        const [weatherData, aqiData] = await Promise.all([
-            fetchWeatherForecast(loc.latitude, loc.longitude, loc.timezone || 'auto'),
-            fetchAirQuality(loc.latitude, loc.longitude, loc.timezone || 'auto')
-        ]);
-
+        // 1. Fetch live meteorological forecast
+        const weatherData = await fetchWeatherForecast(loc.latitude, loc.longitude, loc.timezone || 'auto');
         state.weather = weatherData;
-        state.airQuality = aqiData;
         state.lastFetchTimestamp = Date.now();
+
+        // 2. Fetch air quality data non-blockingly (failure never breaks the forecast)
+        try {
+            state.airQuality = await fetchAirQuality(loc.latitude, loc.longitude, loc.timezone || 'auto');
+        } catch (aqiErr) {
+            console.warn('Air quality telemetry unavailable for coordinates:', aqiErr);
+            state.airQuality = null;
+        }
 
         renderAllWeatherViews();
         renderFavoritesBar();
-
-        if (dashboardContent) dashboardContent.style.opacity = '1';
+        hideError();
     } catch (err) {
+        if (err.name === 'AbortError') return;
         console.error('Failed to load atmospheric intelligence:', err);
-        if (errorPanel) {
-            document.getElementById('errorTitle').textContent = 'Atmospheric Telemetry Error';
-            document.getElementById('errorDescription').textContent = 'Unable to fetch weather data from satellite sensors. Please verify network connectivity and retry.';
-            errorPanel.hidden = false;
-        }
-        showAlert('Could not retrieve weather data. Please try again.', 'error');
+        showError(
+            'Weather Telemetry Error',
+            `Unable to retrieve real-time weather observations for ${loc.name || 'the selected location'}. Please verify your network connection and click Try Again.`
+        );
+        showAlert('Could not retrieve weather data. Please click Try Again.', 'error');
     } finally {
-        if (loadingOverlay) loadingOverlay.hidden = true;
+        showLoading(false);
     }
 }
 
@@ -1385,8 +1461,24 @@ async function getWeather() {
         return;
     }
 
+    // Dismiss any open dropdown
+    const dropdown = document.getElementById('searchDropdown');
+    if (dropdown) {
+        dropdown.hidden = true;
+        dropdown.style.display = 'none';
+        dropdown.classList.remove('is-active');
+    }
+    if (input) input.setAttribute('aria-expanded', 'false');
+
     const spinner = document.getElementById('searchSpinner');
-    if (spinner) spinner.hidden = false;
+    if (spinner) {
+        spinner.hidden = false;
+        spinner.style.display = 'block';
+        spinner.classList.add('is-active');
+    }
+
+    showLoading(true);
+    hideError();
 
     try {
         const results = await searchLocations(query);
@@ -1401,17 +1493,28 @@ async function getWeather() {
                 timezone: first.timezone || 'auto'
             };
             await selectLocation(loc);
-
-            // Hide autocomplete dropdown
-            const dropdown = document.getElementById('searchDropdown');
-            if (dropdown) dropdown.hidden = true;
+            dismissAlert();
         } else {
-            showAlert(`No location found for "${query}". Please check the spelling.`, 'error');
+            showLoading(false);
+            showError(
+                'City Not Found',
+                `No meteorological station or city found matching "${query}". Please check your spelling or search for another location.`
+            );
+            showAlert(`No location found for "${query}".`, 'error');
         }
     } catch (e) {
+        showLoading(false);
+        showError(
+            'Search Service Unreachable',
+            'The city search service is temporarily unreachable. Please check your internet connection and try again.'
+        );
         showAlert('Search service unavailable. Please retry.', 'error');
     } finally {
-        if (spinner) spinner.hidden = true;
+        if (spinner) {
+            spinner.hidden = true;
+            spinner.style.display = 'none';
+            spinner.classList.remove('is-active');
+        }
     }
 }
 
@@ -1435,7 +1538,7 @@ async function getAllCitiesWeather() {
 }
 
 /* ----------------------------------------------------------------------------
-   10. GEOLOCATION ("USE MY LOCATION") FLOW
+   11. GEOLOCATION ("USE MY LOCATION") FLOW
    ---------------------------------------------------------------------------- */
 function handleUseMyLocation() {
     if (!navigator.geolocation) {
@@ -1464,7 +1567,7 @@ function handleUseMyLocation() {
                 await selectLocation({
                     name: 'Current Coordinates',
                     country: `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`,
-                    region: 'GPS',
+                    region: 'GPS Telemetry',
                     latitude: lat,
                     longitude: lon,
                     timezone: 'auto'
@@ -1488,7 +1591,7 @@ function handleUseMyLocation() {
 }
 
 /* ----------------------------------------------------------------------------
-   11. AUTOCOMPLETE & SEARCH INTERACTIONS
+   12. AUTOCOMPLETE & SEARCH INTERACTIONS
    ---------------------------------------------------------------------------- */
 function setupSearchAutocomplete() {
     const input = document.getElementById('cityInput');
@@ -1512,6 +1615,8 @@ function setupSearchAutocomplete() {
                 </li>
             `;
             dropdown.hidden = false;
+            dropdown.style.display = 'block';
+            dropdown.classList.add('is-active');
             input.setAttribute('aria-expanded', 'true');
             return;
         }
@@ -1535,6 +1640,8 @@ function setupSearchAutocomplete() {
             li.onclick = () => {
                 input.value = item.name;
                 dropdown.hidden = true;
+                dropdown.style.display = 'none';
+                dropdown.classList.remove('is-active');
                 input.setAttribute('aria-expanded', 'false');
                 selectLocation({
                     name: item.name,
@@ -1550,28 +1657,48 @@ function setupSearchAutocomplete() {
         });
 
         dropdown.hidden = false;
+        dropdown.style.display = 'block';
+        dropdown.classList.add('is-active');
         input.setAttribute('aria-expanded', 'true');
     };
 
     // Debounced search on typing
     input.addEventListener('input', (e) => {
         const val = e.target.value;
-        if (clearBtn) clearBtn.hidden = val.length === 0;
+        if (clearBtn) {
+            clearBtn.hidden = val.length === 0;
+            clearBtn.style.display = val.length === 0 ? 'none' : 'flex';
+            clearBtn.classList.toggle('is-active', val.length > 0);
+        }
 
         clearTimeout(state.searchDebounceTimer);
 
         if (val.trim().length < 2) {
             dropdown.hidden = true;
+            dropdown.style.display = 'none';
+            dropdown.classList.remove('is-active');
             input.setAttribute('aria-expanded', 'false');
-            if (spinner) spinner.hidden = true;
+            if (spinner) {
+                spinner.hidden = true;
+                spinner.style.display = 'none';
+                spinner.classList.remove('is-active');
+            }
             return;
         }
 
-        if (spinner) spinner.hidden = false;
+        if (spinner) {
+            spinner.hidden = false;
+            spinner.style.display = 'block';
+            spinner.classList.add('is-active');
+        }
 
         state.searchDebounceTimer = setTimeout(async () => {
             const results = await searchLocations(val);
-            if (spinner) spinner.hidden = true;
+            if (spinner) {
+                spinner.hidden = true;
+                spinner.style.display = 'none';
+                spinner.classList.remove('is-active');
+            }
             if (results !== null) {
                 renderSuggestions(results);
             }
@@ -1600,10 +1727,15 @@ function setupSearchAutocomplete() {
                 items[activeIndex].click();
             } else {
                 dropdown.hidden = true;
+                dropdown.style.display = 'none';
+                dropdown.classList.remove('is-active');
                 input.setAttribute('aria-expanded', 'false');
+                getWeather();
             }
         } else if (e.key === 'Escape') {
             dropdown.hidden = true;
+            dropdown.style.display = 'none';
+            dropdown.classList.remove('is-active');
             input.setAttribute('aria-expanded', 'false');
         }
     });
@@ -1625,7 +1757,11 @@ function setupSearchAutocomplete() {
         clearBtn.onclick = () => {
             input.value = '';
             clearBtn.hidden = true;
+            clearBtn.style.display = 'none';
+            clearBtn.classList.remove('is-active');
             dropdown.hidden = true;
+            dropdown.style.display = 'none';
+            dropdown.classList.remove('is-active');
             input.setAttribute('aria-expanded', 'false');
             input.focus();
         };
@@ -1635,15 +1771,26 @@ function setupSearchAutocomplete() {
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.search-module')) {
             dropdown.hidden = true;
+            dropdown.style.display = 'none';
+            dropdown.classList.remove('is-active');
             input.setAttribute('aria-expanded', 'false');
         }
     });
 }
 
 /* ----------------------------------------------------------------------------
-   12. EVENT LISTENERS & INITIALIZATION
+   13. EVENT LISTENERS & INITIALIZATION
    ---------------------------------------------------------------------------- */
 function setupEventListeners() {
+    // Form submission (Enter key and Search button click)
+    const searchForm = document.getElementById('searchForm');
+    if (searchForm) {
+        searchForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            getWeather();
+        });
+    }
+
     // Geolocation trigger
     const geoBtn = document.getElementById('geoBtn');
     if (geoBtn) geoBtn.onclick = handleUseMyLocation;
@@ -1664,6 +1811,7 @@ function setupEventListeners() {
     const retryBtn = document.getElementById('errorRetryBtn');
     if (retryBtn) {
         retryBtn.onclick = () => {
+            hideError();
             if (state.location) selectLocation(state.location);
             else selectLocation(CONFIG.DEFAULT_LOCATION);
         };
@@ -1743,7 +1891,9 @@ function setupEventListeners() {
             viewChartBtn.classList.remove('active');
             viewChartBtn.setAttribute('aria-selected', 'false');
             timelineWrapper.hidden = false;
+            timelineWrapper.style.display = 'block';
             chartContainer.hidden = true;
+            chartContainer.style.display = 'none';
             state.currentHourlyView = 'timeline';
         };
 
@@ -1753,7 +1903,9 @@ function setupEventListeners() {
             viewListBtn.classList.remove('active');
             viewListBtn.setAttribute('aria-selected', 'false');
             timelineWrapper.hidden = true;
+            timelineWrapper.style.display = 'none';
             chartContainer.hidden = false;
+            chartContainer.style.display = 'block';
             state.currentHourlyView = 'chart';
             // Re-render chart to ensure dimensions
             renderHourlyForecast();

@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Aether Weather - An editorial, premium, production-grade weather application powered by Open-Meteo. Real-time conditions, 24-hour hourly trend chart, 7-day forecast, air quality, UV index, and celestial tracking.">
+    <meta name="description" content="SkyPulse Weather — Live Weather & Forecast. Real-time conditions, 24-hour hourly trend chart, 7-day forecast, air quality, UV index, and celestial tracking.">
     <meta name="theme-color" content="#0a0e17">
-    <title>Aether Weather — Cinematic Atmospheric Intelligence</title>
+    <title>SkyPulse Weather — Live Weather & Forecast</title>
 
     <!-- Google Fonts Inter & Outfit for refined editorial typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,7 +16,7 @@
     <script>
         (function() {
             try {
-                const savedTheme = localStorage.getItem('aether_theme');
+                const savedTheme = localStorage.getItem('skypulse_theme') || localStorage.getItem('aether_theme');
                 const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
                 const theme = savedTheme || (systemPrefersDark ? 'dark' : 'light');
                 document.documentElement.setAttribute('data-theme', theme);
@@ -50,18 +50,19 @@
                 <div class="brand-logo" aria-hidden="true">
                     <svg viewBox="0 0 32 32" fill="none" class="brand-icon">
                         <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2" stroke-opacity="0.3"/>
-                        <path d="M11 20C11 17.2386 13.2386 15 16 15C16.8906 15 17.724 15.2318 18.448 15.638C19.1678 13.5186 21.1895 12 23.5714 12C26.5695 12 29 14.4305 29 17.4286C29 17.6253 28.9895 17.8195 28.969 18.0104C29.6053 18.5204 30 19.3082 30 20.1905C30 21.7421 28.7421 23 27.1905 23H11C8.23858 23 6 20.7614 6 18C6 15.5458 7.76801 13.5049 10.1065 13.0763C10.7042 9.59388 13.7291 7 17.3333 7C21.4755 7 24.8333 10.3579 24.8333 14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M7 16h4l2.5-6 4 12 2.5-6h7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <circle cx="16" cy="7" r="3" fill="currentColor" fill-opacity="0.5"/>
                     </svg>
                 </div>
                 <div class="brand-text">
-                    <h1 class="brand-title">Aether</h1>
-                    <span class="brand-badge">Atmosphere Studio</span>
+                    <h1 class="brand-title">SkyPulse Weather</h1>
+                    <span class="brand-badge">Live Weather &amp; Forecast</span>
                 </div>
             </div>
 
             <!-- Global Search & Geolocation Interface -->
             <div class="search-module" role="search">
-                <form id="searchForm" class="search-form" onsubmit="event.preventDefault(); getWeather();" novalidate>
+                <form id="searchForm" class="search-form" novalidate>
                     <div class="search-input-wrapper">
                         <span class="search-icon" aria-hidden="true">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -80,7 +81,7 @@
                             role="combobox"
                             aria-expanded="false"
                             aria-autocomplete="list"
-                            aria-controls="searchResultsList"
+                            aria-controls="searchDropdown"
                             aria-label="Search for a city worldwide"
                         >
                         <button type="button" id="clearSearchBtn" class="clear-search-btn" aria-label="Clear search text" hidden>
@@ -93,7 +94,7 @@
                     </div>
 
                     <!-- Preserving existing Search button -->
-                    <button type="submit" id="searchSubmitBtn" class="btn btn-primary" onclick="getWeather()">
+                    <button type="submit" id="searchSubmitBtn" class="btn btn-primary" aria-label="Search city">
                         <span>Search</span>
                     </button>
 
@@ -107,7 +108,7 @@
                 </form>
 
                 <!-- Geocoding Autocomplete Dropdown List -->
-                <div class="search-dropdown" id="searchDropdown" role="listbox" id="searchResultsList" hidden>
+                <div class="search-dropdown" id="searchDropdown" role="listbox" aria-label="City suggestions" hidden>
                     <ul class="suggestions-list" id="suggestionsList"></ul>
                 </div>
             </div>
@@ -640,7 +641,7 @@
             <div class="footer-content">
                 <div class="footer-attribution">
                     <p>
-                        Meteorological observations, atmospheric models, and air quality telemetry powered by 
+                        <strong>SkyPulse Weather</strong> — Live weather observations, atmospheric models, and air quality telemetry powered by 
                         <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a>. 
                         Geocoding provided under Open Database License.
                     </p>
